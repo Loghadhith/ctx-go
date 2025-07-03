@@ -1,0 +1,4 @@
+# Ignore protobuf generated files
+ctxproto/*.pb.go
+ctxproto/*_grpc.pb.go
+

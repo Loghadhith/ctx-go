@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option go_package = "github.com/Loghadhith/ctx-go/";
+
+package ctxproto;
+
+service HelloService {
+  rpc SayHello(HelloRequest) returns (HelloResponse) {}
+}
+
+message HelloRequest {}
+
+message HelloResponse {
+  string message = 1;
+}
