@@ -22,6 +22,20 @@ type ClientService struct {
 	Client    pb.FileUploadServiceClient
 }
 
+func FileWithSizeTransfer(path string) {
+	str := "awk '{print $2,$8}'"
+	path = fmt.Sprintf("l %s | %s", path,str)
+	// cmd := exec.Command("bash", "-c", "ls | grep flac")
+	cmd := exec.Command("bash", "-c", path)
+	fmt.Println(cmd)
+	data, _ := cmd.Output()
+	log.Println(string(data))
+	for _, v := range data {
+		fmt.Print(string(v))
+	}
+	fmt.Println()
+}
+
 func FileToTransfer(path string) ([]string, error) {
 	path = fmt.Sprintf("ls %s", path)
 	// cmd := exec.Command("bash", "-c", "ls | grep flac")
@@ -49,6 +63,7 @@ func FileToTransfer(path string) ([]string, error) {
 }
 
 func (s *ClientService) UploadReader(ctx context.Context, cancel context.CancelFunc) error {
+	FileWithSizeTransfer(s.FilePath)
 	str, etrErr := FileToTransfer(s.FilePath)
 	if etrErr != nil {
 		log.Println("FileToTransfer error:", etrErr)
