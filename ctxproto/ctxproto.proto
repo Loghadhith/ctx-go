@@ -4,8 +4,23 @@ option go_package = "github.com/Loghadhith/ctx-go/";
 
 package ctxproto;
 
+message FileUploadRequest {
+  string file_name = 1;
+  bytes chunk = 2;
+}
+
+message FileUploadResponse {
+  string file_name = 1;
+  uint32 size = 2;
+}
+
+service FileUploadService {
+  rpc UploadFile(stream FileUploadRequest) returns (FileUploadResponse);
+}
+
 service HelloService {
-  rpc SayHello(HelloRequest) returns (HelloResponse) {}
+  rpc SayHello(HelloRequest) returns (HelloResponse) ;
+  rpc GetHello(HelloRequest) returns (HelloResponse) {}
 }
 
 message HelloRequest {}

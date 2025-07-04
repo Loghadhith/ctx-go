@@ -2,3 +2,8 @@
 ctxproto/*.pb.go
 ctxproto/*_grpc.pb.go
 
+client/files/*
+client/files/.gitkeep
+server/upload
+*.bak
+
