@@ -12,15 +12,29 @@ import (
 )
 
 func main() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// conn, err := grpc.DialContext(ctx,
+	// 	"localhost:50051",
+	// 	grpc.WithTransportCredentials(insecure.NewCredentials()),
+	// 	grpc.WithBlock(),
+	// )
+	// if err != nil {
+	// 	log.Fatalf("failed to connect to gRPC server at localhost:50051: %v", err)
+	// }
+	//
+	// ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	// defer cancel()
+
 	conn, err := grpc.NewClient("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("failed to connect to gRPC server at localhost:50051: %v", err)
 	}
 	defer conn.Close()
-	c := pb.NewHelloServiceClient(conn)
+	log.Println("✅ Connected to gRPC server")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	c := pb.NewHelloServiceClient(conn)
 
 	r, err := c.SayHello(ctx, &pb.HelloRequest{})
 	if err != nil {
@@ -34,7 +48,7 @@ func main() {
 	clientService := &utils.ClientService{
 		Addr:      "localhost:50051",
 		FilePath:  "files",
-		BatchSize: 1024,
+		BatchSize: 4096,
 		Client:    uploadClient,
 	}
 
