@@ -5,5 +5,6 @@ ctxproto/*_grpc.pb.go
 client/files/*
 client/files/.gitkeep
 server/upload
+server/concur
 *.bak
 

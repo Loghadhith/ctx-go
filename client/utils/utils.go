@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -23,35 +24,36 @@ type ClientService struct {
 	Client    pb.FileUploadServiceClient
 }
 
-func FileWithSizeTransfer(path string) ([]byte,[]byte) {
-	siz := "awk '{print $5}'"
-	sizPath := fmt.Sprintf("ls -l %s | %s", path, siz)
-
-	file := "awk '{print $9}'"
-	filePath := fmt.Sprintf("ls -l %s | %s", path, file)
-
-	cmdSiz := exec.Command("bash", "-c", sizPath)
-	cmdFile := exec.Command("bash", "-c", filePath)
-	dataS, _ := cmdSiz.Output()
-	log.Println("string chk", string(dataS), len(dataS))
-	log.Println("ok\n")
-
-	dataF, _ := cmdFile.Output()
-	log.Println("string chk", string(dataF), len(dataF))
-	log.Println("ok\n")
-
-	fmt.Print("The data is : ")
-	for _, v := range dataS {
-		fmt.Print(string(v))
+func FileWithSizeTransfer(path string) ([]byte, []byte) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		log.Fatalf("failed to read directory %s: %v", path, err)
 	}
-	fmt.Println()
 
-	fmt.Print("The data is : ")
-	for _, v := range dataF {
-		fmt.Print(string(v))
+	var sizes []string
+	var names []string
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			log.Printf("could not get info for file %s: %v", entry.Name(), err)
+			continue
+		}
+		sizes = append(sizes, fmt.Sprintf("%d", info.Size()))
+		names = append(names, entry.Name())
 	}
-	fmt.Println()
-	return dataS,dataF
+
+	sizesJoined := strings.Join(sizes, "\n")
+	namesJoined := strings.Join(names, "\n")
+
+	// Logging to match original behavior
+	log.Println("✅ Files found:", names)
+	log.Println("✅ Sizes:", sizes)
+
+	return []byte(sizesJoined), []byte(namesJoined)
 }
 
 func FileToTransfer(path string) ([]string, error) {
@@ -78,7 +80,7 @@ func FileToTransfer(path string) ([]string, error) {
 	return lines, nil
 }
 
-func DivideAndSendFile(id uint32, stream grpc.ClientStreamingClient[pb.DivideFileUploadReqeust, pb.DivideFileUploadResponse], path string,offset uint32,batchSize uint32) error {
+func DivideAndSendFile(id uint32, stream grpc.ClientStreamingClient[pb.DivideFileUploadReqeust, pb.DivideFileUploadResponse], path string, offset uint32, batchSize uint32) error {
 	file, err := os.Open(path)
 	if err != nil {
 		log.Println("Error opening file:", path)
@@ -87,7 +89,7 @@ func DivideAndSendFile(id uint32, stream grpc.ClientStreamingClient[pb.DivideFil
 	defer file.Close()
 
 	buf := make([]byte, batchSize)
-	n, err := file.ReadAt(buf,int64(offset))
+	n, err := file.ReadAt(buf, int64(offset))
 
 	if err != nil && err != io.EOF {
 		log.Println("Read error:", err)
@@ -98,10 +100,10 @@ func DivideAndSendFile(id uint32, stream grpc.ClientStreamingClient[pb.DivideFil
 	}
 
 	if err := stream.Send(&pb.DivideFileUploadReqeust{
-		ChunkId: uint32(id),
+		ChunkId:  uint32(id),
 		FileName: path,
-		Chunk: buf,
-	});	err != nil {
+		Chunk:    buf,
+	}); err != nil {
 		log.Println("Send error:", err)
 		return err
 	}
@@ -151,7 +153,6 @@ func SendFileReq(id int, stream grpc.ClientStreamingClient[pb.FileUploadRequest,
 	log.Println("✅ File upload succeeded:", path)
 	return nil
 }
-
 
 func (s *ClientService) UploadReader(ctx context.Context, cancel context.CancelFunc) error {
 	FileWithSizeTransfer(s.FilePath)
@@ -206,50 +207,85 @@ func (s *ClientService) UploadReader(ctx context.Context, cancel context.CancelF
 	return nil
 }
 
-func(s *ClientService) DivideAndSend(ctx context.Context, cancel context.CancelFunc) error {
-	sizes , files := FileWithSizeTransfer(s.FilePath)
+func (s *ClientService) DivideAndSend(ctx context.Context, cancel context.CancelFunc) error {
+	sizesBytes, filesBytes := FileWithSizeTransfer(s.FilePath)
+	var fileName []string
+	fmt.Println("gell", string(filesBytes))
+	files := strings.Split(string(filesBytes), "\n")
+	sizes := strings.Split(string(sizesBytes), "\n")
 
+	fmt.Println(fileName)
+	for _, j := range sizes {
+		fmt.Printf("%s", string(j))
+	}
+	fmt.Println()
 
 	var wg sync.WaitGroup
 
 	for i := range len(files) {
-		path := fmt.Sprintf("files/%s",files[i])
-		fileSize := uint32(sizes[i])
+		path := fmt.Sprintf("files/%s", files[i])
+		u64, _ := strconv.ParseUint(sizes[i], 10, 32)
+		fileSize := uint32(u64)
 		wg.Add(1)
 		// goroutine for each file
-		go func (id int , filePath string, fileSize uint32){
+		go func(id int, filePath string, fileSize uint32) {
 			defer wg.Done()
 			var iwg sync.WaitGroup
 			innererrCh := make(chan error, fileSize/uint32(s.BatchSize))
 
-			var batchnum uint32 = 0
-			for j := uint32(0) ; uint32(j) < fileSize ; j += uint32(s.BatchSize) {
-				iwg.Add(1)
-				go func(name string, ttsize uint32,offset uint32,id uint32) {
-					defer iwg.Done()
-					stream, err := s.Client.DivideAndSend(ctx)
-					if err != nil {
-						return
-					}
+			// var batchnum uint32 = 0
 
-					if err := DivideAndSendFile(batchnum,stream,name,j,uint32(s.BatchSize)); err != nil {
-						innererrCh <- fmt.Errorf("send file error: %w", err)
-						return
-					}
-
-					res, err := stream.CloseAndRecv()
-					if err != nil {
-						innererrCh <- fmt.Errorf("close and recv error: %w", err)
-						return
-					}
-					batchnum++
-					log.Printf("✅ Sent - %v bytes - %s\n", res.GetSize(), res.GetFileName())
-				}(filePath,fileSize,j,uint32(batchnum))
+			stream, err := s.Client.DivideAndSend(ctx)
+			if err != nil {
+				log.Printf("Stream error: %v", err)
+				return
 			}
+
+			file, err := os.Open(filePath)
+			if err != nil {
+				log.Printf("File open error: %v", err)
+				return
+			}
+			defer file.Close()
+
+			var chunkID uint32 = 0
+			for offset := uint32(0); offset < fileSize; offset += uint32(s.BatchSize) {
+				buf := make([]byte, s.BatchSize)
+				n, err := file.ReadAt(buf, int64(offset))
+				if err != nil && err != io.EOF {
+					log.Printf("Read error at offset %d: %v", offset, err)
+					return
+				}
+				if n == 0 {
+					break
+				}
+
+				req := &pb.DivideFileUploadReqeust{
+					ChunkId:  chunkID,
+					FileName: filePath,
+					Chunk:    buf[:n],
+				}
+
+				if err := stream.Send(req); err != nil {
+					log.Printf("Send error on chunk %d: %v", chunkID, err)
+					return
+				}
+
+				log.Printf("✅ Sent chunk %d (%d bytes)", chunkID, n)
+				chunkID++
+			}
+
+			res, err := stream.CloseAndRecv()
+			if err != nil {
+				log.Printf("CloseAndRecv error: %v", err)
+				return
+			}
+			log.Printf("🎉 Upload complete: %s (%d bytes confirmed)", res.GetFileName(), res.GetSize())
+
 			iwg.Wait()
 			close(innererrCh)
 
-		}(i,path,fileSize)
+		}(i, path, fileSize)
 	}
 	wg.Wait()
 

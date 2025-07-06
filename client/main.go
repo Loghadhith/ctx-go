@@ -55,7 +55,11 @@ func main() {
 	uploadCtx, uploadCancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer uploadCancel()
 
-	if err := clientService.UploadReader(uploadCtx, uploadCancel); err != nil {
+	if err := clientService.DivideAndSend(uploadCtx, uploadCancel); err != nil {
 		log.Fatalf("file upload failed: %v", err)
 	}
+
+	// if err := clientService.UploadReader(uploadCtx, uploadCancel); err != nil {
+	// 	log.Fatalf("file upload failed: %v", err)
+	// }
 }
