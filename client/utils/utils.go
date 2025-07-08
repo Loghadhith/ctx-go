@@ -15,6 +15,7 @@ import (
 
 	pb "github.com/Loghadhith/ctx-go/ctxproto"
 	grpc "google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 type ClientService struct {
@@ -213,6 +214,40 @@ func (s *ClientService) DivideAndSend(ctx context.Context, cancel context.Cancel
 	fmt.Println("gell", string(filesBytes))
 	files := strings.Split(string(filesBytes), "\n")
 	sizes := strings.Split(string(sizesBytes), "\n")
+
+	md := metadata.New(map[string]string{})
+	md["files"] = files
+	md["sizes"] = sizes
+
+	send, _ := metadata.FromOutgoingContext(ctx)
+	log.Println("deafult metdata: ", send)
+	log.Println("deafult ctx: ", ctx)
+	ctx = metadata.NewOutgoingContext(ctx, metadata.Join(send, md))
+	log.Println("New ctx: ", ctx)
+	log.Println("New metadata: ", md)
+
+	stream, err := s.Client.DivideAndSend(ctx)
+	if err != nil {
+		log.Printf("Stream error: %v", err)
+		return err
+	}
+	req := &pb.DivideFileUploadReqeust{
+		ChunkId:  0,
+		FileName: "metadata",
+		Chunk:    nil,
+	}
+
+	if err := stream.Send(req); err != nil {
+		// log.Printf("Send error on chunk %d: %v", chunkID, err)
+		log.Println("metadata err: ", err)
+		return err
+	}
+	res, err := stream.CloseAndRecv()
+	if err != nil {
+		log.Printf("CloseAndRecv error: %v", err)
+		return err
+	}
+	log.Println("Metada succesfully transmitted",res)
 
 	fmt.Println(fileName)
 	for _, j := range sizes {

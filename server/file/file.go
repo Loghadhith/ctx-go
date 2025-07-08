@@ -7,11 +7,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	uploadpb "github.com/Loghadhith/ctx-go/ctxproto"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -114,6 +116,43 @@ func (s *FileServiceServer) UploadFile(stream uploadpb.FileUploadService_UploadF
 	})
 }
 
+func WriteTmpFil(files []string, sizes []string) {
+	// Createing each file with tmp data
+	for i := 0; i < len(files); i++ {
+		size, err := strconv.ParseInt(sizes[i], 10, 64)
+		if err != nil {
+			log.Printf("Invalid size for file %s: %v", files[i], err)
+			continue
+		}
+
+		// Create or truncate the file
+		path := fmt.Sprintf("concur/%s",files[i])
+		f, err := os.Create(path)
+		if err != nil {
+			log.Printf("Error creating file %s: %v", files[i], err)
+			continue
+		}
+
+		// Preallocate the file size with zeros
+		// Option 1: Use Truncate to set file size (content will be zero-filled on most systems)
+		err = f.Truncate(size)
+		if err != nil {
+			log.Printf("Error truncating file %s to size %d: %v", files[i], size, err)
+			f.Close()
+			continue
+		}
+
+		// Close the file after allocation
+		err = f.Close()
+		if err != nil {
+			log.Printf("Error closing file %s: %v", files[i], err)
+		}
+
+		log.Printf("Created temp file %s with size %d bytes", files[i], size)
+	}
+	log.Println("Created the tmp files with dummy data")
+}
+
 func (s *FileServiceServer) DivideAndSend(stream uploadpb.FileUploadService_DivideAndSendServer) error {
 	const ChunkSize = 4096
 
@@ -135,6 +174,19 @@ func (s *FileServiceServer) DivideAndSend(stream uploadpb.FileUploadService_Divi
 
 	for {
 		req, err := stream.Recv()
+
+		if req.GetFileName() == "metadata" {
+			//do something with metadata
+			md, ok := metadata.FromIncomingContext(stream.Context())
+			if !ok {
+				log.Println("Metadata parse error: ", ok)
+			}
+			log.Println("This is my metadata", md)
+			WriteTmpFil(md["files"], md["sizes"])
+			log.Println(req)
+			continue
+		}
+
 		if err == io.EOF {
 			log.Println("📦 EOF received: Finalizing file...")
 
