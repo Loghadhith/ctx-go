@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	pb "github.com/Loghadhith/ctx-go/ctxproto"
 	grpc "google.golang.org/grpc"
@@ -126,7 +127,7 @@ func SendFileReq(id int, stream grpc.ClientStreamingClient[pb.FileUploadRequest,
 
 	reader := bufio.NewReader(file)
 	// prev bottleneck faced when transferring to sp and mk
-	buf := make([]byte, 4096)
+	buf := make([]byte, 524288)
 
 	for {
 		n, err := reader.Read(buf)
@@ -247,7 +248,9 @@ func (s *ClientService) DivideAndSend(ctx context.Context, cancel context.Cancel
 		log.Printf("CloseAndRecv error: %v", err)
 		return err
 	}
-	log.Println("Metada succesfully transmitted",res)
+	log.Println("Metada succesfully transmitted", res)
+	time.Sleep(time.Second * 2)
+	log.Println("ok now go")
 
 	fmt.Println(fileName)
 	for _, j := range sizes {
@@ -258,7 +261,6 @@ func (s *ClientService) DivideAndSend(ctx context.Context, cancel context.Cancel
 	var wg sync.WaitGroup
 
 	for i := range len(files) {
-		path := fmt.Sprintf("files/%s", files[i])
 		u64, _ := strconv.ParseUint(sizes[i], 10, 32)
 		fileSize := uint32(u64)
 		wg.Add(1)
@@ -275,8 +277,9 @@ func (s *ClientService) DivideAndSend(ctx context.Context, cancel context.Cancel
 				log.Printf("Stream error: %v", err)
 				return
 			}
+			path := fmt.Sprintf("files/%s", filePath)
 
-			file, err := os.Open(filePath)
+			file, err := os.Open(path)
 			if err != nil {
 				log.Printf("File open error: %v", err)
 				return
@@ -300,6 +303,7 @@ func (s *ClientService) DivideAndSend(ctx context.Context, cancel context.Cancel
 					FileName: filePath,
 					Chunk:    buf[:n],
 				}
+				log.Println("This is my req filename", req.FileName)
 
 				if err := stream.Send(req); err != nil {
 					log.Printf("Send error on chunk %d: %v", chunkID, err)
@@ -320,7 +324,7 @@ func (s *ClientService) DivideAndSend(ctx context.Context, cancel context.Cancel
 			iwg.Wait()
 			close(innererrCh)
 
-		}(i, path, fileSize)
+		}(i, files[i], fileSize)
 	}
 	wg.Wait()
 

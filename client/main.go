@@ -48,11 +48,11 @@ func main() {
 	clientService := &utils.ClientService{
 		Addr:      "localhost:50051",
 		FilePath:  "files",
-		BatchSize: 4096,
+		BatchSize: 524288,
 		Client:    uploadClient,
 	}
 
-	uploadCtx, uploadCancel := context.WithTimeout(context.Background(), time.Second*10)
+	uploadCtx, uploadCancel := context.WithTimeout(context.Background(), time.Second*20)
 	defer uploadCancel()
 
 	if err := clientService.DivideAndSend(uploadCtx, uploadCancel); err != nil {

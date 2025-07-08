@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 
 	uploadpb "github.com/Loghadhith/ctx-go/ctxproto"
 
@@ -126,8 +125,10 @@ func WriteTmpFil(files []string, sizes []string) {
 		}
 
 		// Create or truncate the file
-		path := fmt.Sprintf("concur/%s",files[i])
+		path := fmt.Sprintf("concur/%s", files[i])
 		f, err := os.Create(path)
+		// d := []byte("Hello damn")
+		// f.Write(d)
 		if err != nil {
 			log.Printf("Error creating file %s: %v", files[i], err)
 			continue
@@ -148,99 +149,77 @@ func WriteTmpFil(files []string, sizes []string) {
 			log.Printf("Error closing file %s: %v", files[i], err)
 		}
 
-		log.Printf("Created temp file %s with size %d bytes", files[i], size)
+		// log.Printf("Created temp file %s with size %d bytes", files[i], size)
+		// log.Println("Metadata", files[i])
 	}
 	log.Println("Created the tmp files with dummy data")
 }
 
 func (s *FileServiceServer) DivideAndSend(stream uploadpb.FileUploadService_DivideAndSendServer) error {
-	const ChunkSize = 4096
-
-	err := os.MkdirAll("concur", 0755)
-	if err != nil {
-		log.Println("mkdir error:", err)
-		return status.Errorf(codes.Internal, "failed to create directory: %v", err)
-	}
+	const ChunkSize = 524288
 
 	var (
-		tmpFile     *os.File
-		finalPath   string
-		tmpFilePath string
-		fileName    string
-		totalSize   uint32
-		received    = make(map[uint32]bool) // chunk_id -> bool
-		mu          sync.Mutex
+		received  = make(map[uint32]bool) // chunk_id -> bool
+		totalSize uint32
+		File      *os.File
+		fileName  string
 	)
 
 	for {
 		req, err := stream.Recv()
-
-		if req.GetFileName() == "metadata" {
-			//do something with metadata
-			md, ok := metadata.FromIncomingContext(stream.Context())
-			if !ok {
-				log.Println("Metadata parse error: ", ok)
-			}
-			log.Println("This is my metadata", md)
-			WriteTmpFil(md["files"], md["sizes"])
-			log.Println(req)
-			continue
-		}
+		fileName = req.GetFileName()
 
 		if err == io.EOF {
 			log.Println("📦 EOF received: Finalizing file...")
-
-			if tmpFile != nil {
-				tmpFile.Close()
-
-				if err := os.Rename(tmpFilePath, finalPath); err != nil {
-					return status.Errorf(codes.Internal, "failed to rename file: %v", err)
-				}
-				log.Printf("✅ Upload complete: %s (%d bytes)", finalPath, totalSize)
-			}
 
 			return stream.SendAndClose(&uploadpb.DivideFileUploadResponse{
 				FileName: fileName,
 				Size:     totalSize,
 			})
 		}
+		// log.Println("req 1st", req)
+		// log.Println("req rahul", req.GetFileName())
+		// log.Println("stream ", stream.Context())
+		if req.GetFileName() == "metadata" {
+			//do something with metadata
+			md, ok := metadata.FromIncomingContext(stream.Context())
+			if !ok {
+				log.Println("Metadata parse error: ", ok)
+			}
+
+			// log.Println("This is my metadata", md)
+			// log.Println(md["files"], md["sizes"])
+			WriteTmpFil(md["files"], md["sizes"])
+			// log.Println("skip", req.GetChunkId())
+			continue
+		}
 		if err != nil {
 			log.Println("receive error:", err)
 			return status.Errorf(codes.Internal, "failed to receive chunk: %v", err)
 		}
-
-		mu.Lock()
-
-		if tmpFile == nil {
-			fileName = filepath.Base(req.GetFileName())
-			finalPath = filepath.Join("concur", fileName)
-			tmpFilePath = finalPath + ".tmp"
-
-			tmpFile, err = os.OpenFile(tmpFilePath, os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				mu.Unlock()
-				return status.Errorf(codes.Internal, "failed to create temp file: %v", err)
-			}
-		}
-
-		chunkID := req.GetChunkId()
-		if received[chunkID] {
-			log.Printf("⚠️ Skipping already received chunk_id %d", chunkID)
-			mu.Unlock()
+		ChunkID := req.ChunkId
+		if received[ChunkID] {
+			log.Printf("⚠️ Skipping already received chunk_id %d", ChunkID)
 			continue
 		}
-		received[chunkID] = true
+		received[ChunkID] = true
 
-		chunk := req.GetChunk()
-		offset := int64(chunkID) * ChunkSize
-
-		n, err := tmpFile.WriteAt(chunk, offset)
+		Chunk := req.GetChunk()
+		offset := int64(ChunkID) * ChunkSize
+		fileName := req.FileName
+		// log.Println("Inga mudila")
+		File, err = os.OpenFile(fmt.Sprintf("concur/%s", fileName), os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			mu.Unlock()
+			return status.Errorf(codes.FailedPrecondition, "failed to open the file")
+		}
+
+		// log.Println("Inga mudila")
+		n, err := File.WriteAt(Chunk, offset)
+		// log.Println("Inga solee mudinchu")
+		if err != nil {
 			return status.Errorf(codes.Internal, "failed to write chunk at offset %d: %v", offset, err)
 		}
 
 		totalSize += uint32(n)
-		mu.Unlock()
 	}
 }
