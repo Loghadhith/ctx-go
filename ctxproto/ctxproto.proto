@@ -25,6 +25,22 @@ message DivideFileUploadResponse {
   uint32 size = 2;
 }
 
+message DataRequest {}
+
+message DataResponse {
+  repeated string data = 1;
+}
+
+message StreamingRequest {
+    string id = 1;
+}
+
+message StreamingResponse {
+    uint32 part = 1;
+    string data = 2;
+    bytes chunk = 3;
+}
+
 service FileUploadService {
   rpc UploadFile(stream FileUploadRequest) returns (FileUploadResponse);
   rpc DivideAndSend(stream DivideFileUploadReqeust) returns (DivideFileUploadResponse);
@@ -32,7 +48,12 @@ service FileUploadService {
 
 service HelloService {
   rpc SayHello(HelloRequest) returns (HelloResponse) ;
-  rpc GetHello(HelloRequest) returns (HelloResponse) {}
+  rpc GetHello(HelloRequest) returns (HelloResponse) {};
+}
+
+service StreamFileService {
+  rpc GetDataStreaming(DataRequest) returns (DataResponse);
+  rpc StreamingData(StreamingRequest) returns (stream StreamingResponse);
 }
 
 message HelloRequest {}

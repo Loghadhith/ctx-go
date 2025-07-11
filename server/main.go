@@ -10,6 +10,7 @@ import (
 	pb "github.com/Loghadhith/ctx-go/ctxproto"
 	uploadpb "github.com/Loghadhith/ctx-go/ctxproto"
 	"github.com/Loghadhith/ctx-go/server/file"
+	"github.com/Loghadhith/ctx-go/server/stream"
 )
 
 type helloServer struct {
@@ -36,6 +37,7 @@ func main() {
 
     pb.RegisterHelloServiceServer(grpcServer, &helloServer{})
     uploadpb.RegisterFileUploadServiceServer(grpcServer, &file.FileServiceServer{})
+		pb.RegisterStreamFileServiceServer(grpcServer, &stream.StreamingServiceServer{})
 
     log.Printf("gRPC server listening at %v", lis.Addr())
     if err := grpcServer.Serve(lis); err != nil {
