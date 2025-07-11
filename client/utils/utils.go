@@ -1,5 +1,4 @@
 package utils
-
 import (
 	"bufio"
 	"context"
@@ -303,7 +302,7 @@ func (s *ClientService) DivideAndSend(ctx context.Context, cancel context.Cancel
 					FileName: filePath,
 					Chunk:    buf[:n],
 				}
-				log.Println("This is my req filename", req.FileName)
+				// log.Println("This is my req filename", req)
 
 				if err := stream.Send(req); err != nil {
 					log.Printf("Send error on chunk %d: %v", chunkID, err)
@@ -315,6 +314,7 @@ func (s *ClientService) DivideAndSend(ctx context.Context, cancel context.Cancel
 			}
 
 			res, err := stream.CloseAndRecv()
+			time.Sleep(time.Second)
 			if err != nil {
 				log.Printf("CloseAndRecv error: %v", err)
 				return
@@ -330,3 +330,4 @@ func (s *ClientService) DivideAndSend(ctx context.Context, cancel context.Cancel
 
 	return nil
 }
+

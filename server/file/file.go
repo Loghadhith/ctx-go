@@ -117,6 +117,7 @@ func (s *FileServiceServer) UploadFile(stream uploadpb.FileUploadService_UploadF
 
 func WriteTmpFil(files []string, sizes []string) {
 	// Createing each file with tmp data
+	log.Println("Write temp file")
 	for i := 0; i < len(files); i++ {
 		size, err := strconv.ParseInt(sizes[i], 10, 64)
 		if err != nil {
@@ -149,7 +150,7 @@ func WriteTmpFil(files []string, sizes []string) {
 			log.Printf("Error closing file %s: %v", files[i], err)
 		}
 
-		// log.Printf("Created temp file %s with size %d bytes", files[i], size)
+		log.Printf("Created temp file %s with size %d bytes", files[i], size)
 		// log.Println("Metadata", files[i])
 	}
 	log.Println("Created the tmp files with dummy data")
@@ -168,6 +169,8 @@ func (s *FileServiceServer) DivideAndSend(stream uploadpb.FileUploadService_Divi
 	for {
 		req, err := stream.Recv()
 		fileName = req.GetFileName()
+		// log.Println("req",req)
+		// log.Println("No chk",req.GetFileName())
 
 		if err == io.EOF {
 			log.Println("📦 EOF received: Finalizing file...")
@@ -177,20 +180,15 @@ func (s *FileServiceServer) DivideAndSend(stream uploadpb.FileUploadService_Divi
 				Size:     totalSize,
 			})
 		}
-		// log.Println("req 1st", req)
-		// log.Println("req rahul", req.GetFileName())
-		// log.Println("stream ", stream.Context())
 		if req.GetFileName() == "metadata" {
 			//do something with metadata
+			log.Println("Not Checked")
 			md, ok := metadata.FromIncomingContext(stream.Context())
 			if !ok {
 				log.Println("Metadata parse error: ", ok)
 			}
 
-			// log.Println("This is my metadata", md)
-			// log.Println(md["files"], md["sizes"])
 			WriteTmpFil(md["files"], md["sizes"])
-			// log.Println("skip", req.GetChunkId())
 			continue
 		}
 		if err != nil {
@@ -207,15 +205,13 @@ func (s *FileServiceServer) DivideAndSend(stream uploadpb.FileUploadService_Divi
 		Chunk := req.GetChunk()
 		offset := int64(ChunkID) * ChunkSize
 		fileName := req.FileName
-		// log.Println("Inga mudila")
+		// File, err = os.Create(fileName)
 		File, err = os.OpenFile(fmt.Sprintf("concur/%s", fileName), os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			return status.Errorf(codes.FailedPrecondition, "failed to open the file")
+			return status.Errorf(codes.FailedPrecondition, "failed to open the file",err)
 		}
 
-		// log.Println("Inga mudila")
 		n, err := File.WriteAt(Chunk, offset)
-		// log.Println("Inga solee mudinchu")
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to write chunk at offset %d: %v", offset, err)
 		}
