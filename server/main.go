@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net"
-	"os"
 
 	"google.golang.org/grpc"
 
@@ -28,10 +27,6 @@ func (s *helloServer) GetHello(ctx context.Context, in *pb.HelloRequest) (*pb.He
 }
 
 func main() {
-		err := os.Mkdir("upload",0755)
-		if err != nil {
-			log.Println("mkdir err",err)
-		}
     lis, err := net.Listen("tcp", ":50051")
     if err != nil {
         log.Fatalf("Failed to listen: %v", err)

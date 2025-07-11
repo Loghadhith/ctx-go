@@ -14,8 +14,20 @@ message FileUploadResponse {
   uint32 size = 2;
 }
 
+message DivideFileUploadReqeust {
+  uint32 chunk_id = 1;
+  string file_name = 2;
+  bytes chunk = 3;
+}
+
+message DivideFileUploadResponse {
+  string file_name = 1;
+  uint32 size = 2;
+}
+
 service FileUploadService {
   rpc UploadFile(stream FileUploadRequest) returns (FileUploadResponse);
+  rpc DivideAndSend(stream DivideFileUploadReqeust) returns (DivideFileUploadResponse);
 }
 
 service HelloService {
